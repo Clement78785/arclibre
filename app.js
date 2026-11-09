@@ -7318,7 +7318,7 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.1.1",
+  var gr = "0.2.0",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
@@ -7367,6 +7367,73 @@ M30`,
     Object.assign(H, JSON.parse(localStorage.getItem("arclibre-mobile") || "{}"));
   } catch {}
   H.layers = {};
+  // Veille de l'ecran, bandeau de decoupe et rechargement apres mise a jour.
+  var guard = { on: false, lock: null, video: null, mode: "", pending: false, hiddenAt: 0 };
+  var NOSLEEP = {
+    mp4: "data:video/mp4;base64,AAAAIGZ0eXBpc29tAAACAGlzb21pc28yYXZjMW1wNDEAAAMsbW9vdgAAAGxtdmhkAAAAAAAAAAAAAAAAAAAD6AAAA+gAAQAAAQAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAgAAAlZ0cmFrAAAAXHRraGQAAAADAAAAAAAAAAAAAAABAAAAAAAAA+gAAAAAAAAAAAAAAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAAAAAABAAAAAAEAAAABAAAAAAAAkZWR0cwAAABxlbHN0AAAAAAAAAAEAAAPoAAAAAAABAAAAAAHObWRpYQAAACBtZGhkAAAAAAAAAAAAAAAAAABAAAAAQABVxAAAAAAALWhkbHIAAAAAAAAAAHZpZGUAAAAAAAAAAAAAAABWaWRlb0hhbmRsZXIAAAABeW1pbmYAAAAUdm1oZAAAAAEAAAAAAAAAAAAAACRkaW5mAAAAHGRyZWYAAAAAAAAAAQAAAAx1cmwgAAAAAQAAATlzdGJsAAAAuXN0c2QAAAAAAAAAAQAAAKlhdmMxAAAAAAAAAAEAAAAAAAAAAAAAAAAAAAAAAEAAQABIAAAASAAAAAAAAAABFUxhdmM2MC4zMS4xMDIgbGlieDI2NAAAAAAAAAAAAAAAGP//AAAAL2F2Y0MBQsAK/+EAF2dCwArZBCbARAAAAwAEAAADABA8SJkgAQAFaMuDyyAAAAAQcGFzcAAAAAEAAAABAAAAFGJ0cnQAAAAAAAAUyAAAFMgAAAAYc3R0cwAAAAAAAAABAAAAAgAAIAAAAAAUc3RzcwAAAAAAAAABAAAAAQAAABxzdHNjAAAAAAAAAAEAAAABAAAAAgAAAAEAAAAcc3RzegAAAAAAAAAAAAAAAgAAAo8AAAAKAAAAFHN0Y28AAAAAAAAAAQAAA1wAAABidWR0YQAAAFptZXRhAAAAAAAAACFoZGxyAAAAAAAAAABtZGlyYXBwbAAAAAAAAAAAAAAAAC1pbHN0AAAAJal0b28AAAAdZGF0YQAAAAEAAAAATGF2ZjYwLjE2LjEwMAAAAAhmcmVlAAACoW1kYXQAAAJwBgX//2zcRem95tlIt5Ys2CDZI+7veDI2NCAtIGNvcmUgMTY0IHIzMTA4IDMxZTE5ZjkgLSBILjI2NC9NUEVHLTQgQVZDIGNvZGVjIC0gQ29weWxlZnQgMjAwMy0yMDIzIC0gaHR0cDovL3d3dy52aWRlb2xhbi5vcmcveDI2NC5odG1sIC0gb3B0aW9uczogY2FiYWM9MCByZWY9MyBkZWJsb2NrPTE6MDowIGFuYWx5c2U9MHgxOjB4MTExIG1lPWhleCBzdWJtZT03IHBzeT0xIHBzeV9yZD0xLjAwOjAuMDAgbWl4ZWRfcmVmPTEgbWVfcmFuZ2U9MTYgY2hyb21hX21lPTEgdHJlbGxpcz0xIDh4OGRjdD0wIGNxbT0wIGRlYWR6b25lPTIxLDExIGZhc3RfcHNraXA9MSBjaHJvbWFfcXBfb2Zmc2V0PS0yIHRocmVhZHM9MiBsb29rYWhlYWRfdGhyZWFkcz0xIHNsaWNlZF90aHJlYWRzPTAgbnI9MCBkZWNpbWF0ZT0xIGludGVybGFjZWQ9MCBibHVyYXlfY29tcGF0PTAgY29uc3RyYWluZWRfaW50cmE9MCBiZnJhbWVzPTAgd2VpZ2h0cD0wIGtleWludD0yNTAga2V5aW50X21pbj0yIHNjZW5lY3V0PTQwIGludHJhX3JlZnJlc2g9MCByY19sb29rYWhlYWQ9NDAgcmM9Y3JmIG1idHJlZT0xIGNyZj0yMy4wIHFjb21wPTAuNjAgcXBtaW49MCBxcG1heD02OSBxcHN0ZXA9NCBpcF9yYXRpbz0xLjQwIGFxPTE6MS4wMACAAAAAF2WIhAU8mKAAP78nJyddddddddddddeAAAAABkGaOAl4Rg==",
+    webm: "data:video/webm;base64,GkXfo59ChoEBQveBAULygQRC84EIQoKEd2VibUKHgQJChYECGFOAZwEAAAAAAAIBEU2bdLpNu4tTq4QVSalmU6yBoU27i1OrhBZUrmtTrIHYTbuMU6uEElTDZ1OsggEeTbuMU6uEHFO7a1OsggHr7AEAAAAAAABZAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAVSalmsirXsYMPQkBNgI1MYXZmNjAuMTYuMTAwV0GNTGF2ZjYwLjE2LjEwMESJiECPQAAAAAAAFlSua8GuAQAAAAAAADjXgQFzxYh5gDu9NQK2xJyBACK1nIN1bmSIgQCGhVZfVlA4g4EBI+ODhB3NZQDgibCBQLqBQJqBAhJUw2f8c3OgY8CAZ8iaRaOHRU5DT0RFUkSHjUxhdmY2MC4xNi4xMDBzc9ZjwItjxYh5gDu9NQK2xGfIoUWjh0VOQ09ERVJEh5RMYXZjNjAuMzEuMTAyIGxpYnZweGfIoUWjiERVUkFUSU9ORIeTMDA6MDA6MDEuMDAwMDAwMDAwAB9DtnXH54EAo6qBAACA8AIAnQEqQABAAABHCIWFiIWEiAICAAZwPEJgCrIg9zAA/v+rUICjloEB9ADRAQABEBAAGAAYWC/0AAiOgAAcU7trkbuPs4EAt4r3gQHxggGf8IED",
+  };
+  async function wakeAcquire() {
+    guard.mode = "";
+    try {
+      if (navigator.wakeLock) {
+        guard.lock = await navigator.wakeLock.request("screen");
+        guard.lock.addEventListener("release", () => {
+          guard.lock = null;
+        });
+        guard.mode = "wakelock";
+      }
+    } catch {}
+    // iPhone : l'application installee ignore parfois l'API de veille. On joue en plus une video
+    // muette et invisible en boucle, ce qui garde aussi l'ecran allume.
+    if (!guard.mode || Nr) {
+      try {
+        if (!guard.video) {
+          let v = W("video", {
+            muted: !0,
+            loop: !0,
+            playsinline: !0,
+            "aria-hidden": "true",
+            style: "position:fixed;left:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none",
+          });
+          ((v.muted = !0), v.setAttribute("playsinline", ""), v.setAttribute("webkit-playsinline", ""));
+          v.append(W("source", { src: NOSLEEP.mp4, type: "video/mp4" }), W("source", { src: NOSLEEP.webm, type: "video/webm" }));
+          (document.body.append(v), (guard.video = v));
+        }
+        await guard.video.play();
+        guard.mode = guard.mode || "video";
+      } catch {}
+    }
+    guardBanner();
+  }
+  function wakeRelease() {
+    try {
+      guard.lock && guard.lock.release();
+    } catch {}
+    ((guard.lock = null), guard.video && guard.video.pause(), (guard.mode = ""));
+  }
+  function guardBanner() {
+    let b = Z("#jobBanner");
+    b.hidden = !guard.on;
+    Z("#jobBannerText").textContent = guard.mode
+      ? "Gardez l\u2019\xE9cran allum\xE9 et ne fermez pas l\u2019application. \xC9cran maintenu allum\xE9."
+      : "Gardez l\u2019\xE9cran allum\xE9 et ne fermez pas l\u2019application. Veille non bloquable ici : d\xE9sactivez le verrouillage automatique de l\u2019appareil.";
+  }
+  function jobGuard() {
+    let run = !!vt.job;
+    if (run !== guard.on) {
+      guard.on = run;
+      run ? wakeAcquire() : (wakeRelease(), reloadIfPending());
+    }
+    guardBanner();
+  }
+  function reloadIfPending() {
+    if (!guard.pending || vt.job) return;
+    ((guard.pending = !1), yt("Nouvelle version installée : rechargement…"));
+    setTimeout(() => {
+      vt.job ? (guard.pending = !0) : location.reload();
+    }, 1200);
+  }
   var zt = () => {
       try {
         let e = { ...H };
@@ -8790,7 +8857,7 @@ M30`,
         ? `Ligne ${o.acked} sur ${o.total}.${o.error ? ` ${o.error}.` : ""}`
         : `${w.sheet.names()} : ${h} lignes, environ ${ai(w.job.stats.time)}.${d ? ` Zone de travail de X ${ct(d[0])} \xE0 ${ct(d[2])} et de Y ${ct(d[1])} \xE0 ${ct(d[3])} mm depuis l\u2019origine.` : ""}`;
     } else Z("#jobInfo").textContent = "Ajoutez une pi\xE8ce pour pr\xE9parer la d\xE9coupe.";
-    Z("#jobBar").style.width = o ? `${(100 * o.acked) / Math.max(o.total, 1)}%` : "0";
+    ((Z("#jobBar").style.width = o ? `${(100 * o.acked) / Math.max(o.total, 1)}%` : "0"), jobGuard());
   }
   vt.on((e, s) => {
     (e === "line"
@@ -8933,7 +9000,14 @@ M30`,
     vt.job && (e.preventDefault(), (e.returnValue = ""));
   });
   document.addEventListener("visibilitychange", () => {
-    document.hidden && document.querySelectorAll("#pad button.held").forEach(() => vt.jogCancel());
+    if (document.hidden) {
+      (document.querySelectorAll("#pad button.held").forEach(() => vt.jogCancel()), (guard.hiddenAt = Date.now()));
+    } else if (vt.job) {
+      // La veille est levee quand la page est masquee : on la reprend et on previent l'utilisateur.
+      (wakeAcquire(),
+        Date.now() - guard.hiddenAt > 1500 &&
+          yt("L’application était masquée pendant la découpe : vérifiez la machine.", "warn"));
+    }
   });
   applyMat(curMat());
   Ir();
@@ -8942,9 +9016,32 @@ M30`,
   Vi();
   fe();
   St();
-  "serviceWorker" in navigator &&
-    location.protocol === "https:" &&
-    navigator.serviceWorker.register("sw.js").catch(() => {});
+  Z("#appVersion").textContent = `v${gr}`;
+  if ("serviceWorker" in navigator && location.protocol === "https:") {
+    // Nouvelle version : le service worker se remplace tout seul, puis la page se recharge
+    // (apres la decoupe s'il y en a une en cours).
+    let hadController = !!navigator.serviceWorker.controller;
+    navigator.serviceWorker.addEventListener("controllerchange", () => {
+      if (!hadController) {
+        hadController = !0;
+        return;
+      }
+      ((guard.pending = !0),
+        vt.job
+          ? yt("Nouvelle version prête : elle s’installera à la fin de la découpe.", "warn")
+          : reloadIfPending());
+    });
+    navigator.serviceWorker
+      .register("sw.js")
+      .then((reg) => {
+        let check = () => reg.update().catch(() => {});
+        (document.addEventListener("visibilitychange", () => {
+          document.hidden || check();
+        }),
+          setInterval(check, 30 * 60 * 1000));
+      })
+      .catch(() => {});
+  }
   window.__arclibre = {
     st: w,
     cfg: H,
@@ -8955,6 +9052,7 @@ M30`,
     partMenu: hi,
     sizeDialog: ui,
     scanSession: tn,
+    machine: vt,
     toGray: Ke,
     async importText(e, s, o = { sx: 1, sy: 1 }) {
       let l = w.sheet.addDrawing(fi(e, s), e, ae(), +H.nest_spacing, o);
