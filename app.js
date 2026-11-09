@@ -6723,22 +6723,64 @@ M30`,
     return v;
   }
   function yr(e, s) {
-    let o = e.length,
-      l = [];
-    for (let a = 0; a < o; a++) {
-      let u = 0,
-        p = 0;
-      for (let d = -s; d <= s; d++) {
-        let h = e[(a + d + o) % o];
-        ((u += h[0]), (p += h[1]));
+    // Lissage du contour ferme : trois moyennes glissantes successives (noyau quasi gaussien),
+    // qui effacent les tremblements du trait mieux qu'une seule passe.
+    let o = e.length;
+    s = Math.min(s, Math.floor(o / 4));
+    if (s < 1) return e;
+    for (let pass = 0; pass < 3; pass++) {
+      let l = [];
+      for (let a = 0; a < o; a++) {
+        let u = 0,
+          p = 0;
+        for (let d = -s; d <= s; d++) {
+          let h = e[(a + d + o) % o];
+          ((u += h[0]), (p += h[1]));
+        }
+        l.push([u / (2 * s + 1), p / (2 * s + 1)]);
       }
-      l.push([u / (2 * s + 1), p / (2 * s + 1)]);
+      e = l;
     }
-    return l;
+    return e;
+  }
+  function qr(e, n = 120, frac = 0.06) {
+    // Plus fort virage (en degres) d'un contour ferme sur une fenetre de 6 % du perimetre.
+    // Un cercle, meme tremble, tourne de facon progressive ; un carre ou un rectangle a de vrais coins.
+    let pts = e.slice(0, -1),
+      m = pts.length;
+    if (m < 4) return 180;
+    let cum = [0];
+    for (let i = 1; i <= m; i++) cum.push(cum[i - 1] + Math.hypot(pts[i % m][0] - pts[i - 1][0], pts[i % m][1] - pts[i - 1][1]));
+    let total = cum[m],
+      res = [],
+      j = 0;
+    for (let i = 0; i < n; i++) {
+      let target = (total * i) / n;
+      while (j < m - 1 && cum[j + 1] < target) j++;
+      let a = pts[j],
+        b = pts[(j + 1) % m],
+        d = cum[j + 1] - cum[j] || 1,
+        f = (target - cum[j]) / d;
+      res.push([a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f]);
+    }
+    let k = Math.max(1, Math.round(n * frac)),
+      best = 0;
+    for (let i = 0; i < n; i++) {
+      let p = res[(i - k + n) % n],
+        q = res[i],
+        r = res[(i + k) % n],
+        ux = q[0] - p[0],
+        uy = q[1] - p[1],
+        vx = r[0] - q[0],
+        vy = r[1] - q[1],
+        c = (ux * vx + uy * vy) / ((Math.hypot(ux, uy) * Math.hypot(vx, vy)) || 1);
+      best = Math.max(best, (Math.acos(Math.max(-1, Math.min(1, c))) * 180) / Math.PI);
+    }
+    return best;
   }
   function Wi(e, s, o = {}) {
     let { w: l, h: a, mmPerPx: u } = e,
-      p = o.smoothMM ?? 0.6,
+      p = o.smoothMM ?? 1.5,
       d = o.minMM ?? 2,
       h = new Float32Array(l * a),
       m = Math.SQRT2;
@@ -6789,7 +6831,7 @@ M30`,
           ]);
       }
       let J = ce(yr(G, Y));
-      J = Pi(J, Math.max(0.5, (p * 0.5) / u));
+      J = Pi(J, Math.max(0.35, 0.08 / u));
       let B = J.map(([et, z]) => [et * u, (a - z) * u]),
         U = Math.abs(It(B)),
         R = qt(B),
@@ -6799,8 +6841,9 @@ M30`,
         tt =
           o.circles !== !1 &&
           V.length >= 6 &&
-          (4 * Math.PI * U) / (R * R) > 0.88 &&
-          Math.max(...V.map((et) => Math.abs(et - st))) / st < 0.08;
+          (4 * Math.PI * U) / (R * R) > 0.8 &&
+          Math.max(...V.map((et) => Math.abs(et - st))) / st < (o.circleTol ?? 0.2) &&
+          qr(B) < 65;
       if (tt) {
         let et = Math.sqrt(U / Math.PI),
           z = [$[0] + et, $[1]];
@@ -7314,7 +7357,8 @@ M30`,
       jog_feed: 3e3,
       scan_paper: "A4",
       scan_sensitivity: 0.35,
-      scan_smooth: 0.6,
+      scan_lissage: 1.5,
+      scan_circle_tol: 0.2,
       scan_circles: !0,
       show_order: !0,
     },
@@ -7933,7 +7977,8 @@ M30`,
       },
       m = () => {
         ((l = Wi(o, Gi(o, +H.scan_sensitivity, 0.25), {
-          smoothMM: +H.scan_smooth,
+          smoothMM: +H.scan_lissage,
+          circleTol: +H.scan_circle_tol,
           circles: !!H.scan_circles,
         })),
           (a = new Set()),
@@ -8018,8 +8063,9 @@ M30`,
           p,
           W("div", { class: "row" }, W("label", { for: "sc-paper", text: "Format de la feuille (cadr\u00E9e)" }), x),
           P("scan_sensitivity", "Sensibilit\xE9", 0.15, 0.6, 0.05, (M) => `${Math.round(M * 100)} %`),
-          P("scan_smooth", "Lissage", 0, 2, 0.1, (M) => `${ct(M, 1)} mm`),
+          P("scan_lissage", "Lissage", 0, 6, 0.25, (M) => `${ct(M, 2)} mm`),
           W("div", { class: "row check" }, W("label", { for: "sc-circ", text: "Cercles parfaits" }), I),
+          P("scan_circle_tol", "Tol\xE9rance des cercles", 0.05, 0.25, 0.01, (M) => `${Math.round(M * 100)} %`),
         )
       ),
       actions: [
