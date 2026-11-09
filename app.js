@@ -7318,7 +7318,7 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.2.0",
+  var gr = "0.2.1",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
@@ -8717,6 +8717,23 @@ M30`,
       (Z("#version").textContent =
         `ArcLibre Mobile ${gr}. Les r\xE9glages sont gard\xE9s sur cet appareil. Les r\xE9glages avanc\xE9s sont dans le menu Param\xE8tres (engrenage, en haut).`));
   }
+  function diagBlock() {
+    let probe = W("div", {
+        style: "position:fixed;visibility:hidden;padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left)",
+      }),
+      vv = window.visualViewport;
+    document.body.append(probe);
+    let cs = getComputedStyle(probe),
+      lines = [
+        `Version ${gr}`,
+        `Fen\xEAtre ${innerWidth} \xD7 ${innerHeight}, \xE9cran ${screen.width} \xD7 ${screen.height}`,
+        `Zone visible ${vv ? `${Math.round(vv.width)} \xD7 ${Math.round(vv.height)}, zoom ${ct(vv.scale, 2)}` : "inconnue"}`,
+        `Marges s\u00E9curis\u00E9es haut ${cs.paddingTop}, bas ${cs.paddingBottom}`,
+        `Application install\u00E9e : ${navigator.standalone || matchMedia("(display-mode: standalone)").matches ? "oui" : "non"}`,
+      ];
+    probe.remove();
+    return W("details", {}, W("summary", { text: "Diagnostic de l\u2019\xE9cran" }), W("pre", { class: "note", text: lines.join("\n") }));
+  }
   async function openSettings() {
     let reload = () => {
       for (let o of w.sheet.defs.values())
@@ -8766,6 +8783,7 @@ M30`,
             ht("rapid_feed", "Vitesse des rapides (estimation)", "mm/min", { range: [1, 1e5] }),
             ht("show_order", "Num\xE9ros d\u2019ordre dans l\u2019aper\xE7u", "", { onchange: St }),
           ]),
+          card("Appareil", [diagBlock()]),
           card("Lecture des fichiers", [
             ht("units", "Unit\xE9s", "", {
               choices: {
@@ -9009,6 +9027,9 @@ M30`,
           yt("L’application était masquée pendant la découpe : vérifiez la machine.", "warn"));
     }
   });
+  // Pas de zoom : pincement (iOS) bloque ici, double appui bloque par touch-action dans le CSS.
+  for (let ev of ["gesturestart", "gesturechange", "gestureend"])
+    document.addEventListener(ev, (e) => e.preventDefault(), { passive: !1 });
   applyMat(curMat());
   Ir();
   Or();
