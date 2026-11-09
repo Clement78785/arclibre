@@ -7318,7 +7318,7 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.2.3",
+  var gr = "0.2.4",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
@@ -8785,6 +8785,9 @@ M30`,
             ht("show_order", "Num\xE9ros d\u2019ordre dans l\u2019aper\xE7u", "", { onchange: St }),
           ]),
           card("Appareil", [
+            document.documentElement.classList.contains("short-vp")
+              ? W("p", { class: "note", text: REINSTALL_TEXT })
+              : null,
             ht("top_guard", "Marge du haut (iPhone install\xE9)", "px", { range: [0, 90], onchange: layoutFix }),
             diagBlock(),
           ]),
@@ -9037,6 +9040,8 @@ M30`,
   // iPhone, application installee : iOS annonce une fenetre plus courte que l'ecran (il manque la hauteur
   // de la barre d'etat en bas) et ne peint rien dans la bande restante. On regle la marge du haut, on
   // marque la page "short-vp" pour que la barre du bas se prolonge visuellement, et on affiche les mesures.
+  var REINSTALL_TEXT =
+    "Affichage r\u00E9duit : l\u2019iPhone semble garder le r\u00E9glage de barre d\u2019\u00E9tat enregistr\u00E9 lors de l\u2019installation. Pour l\u2019essayer de corriger : appuyez longuement sur l\u2019ic\u00F4ne ArcLibre puis Supprimer l\u2019app, ouvrez le site dans Safari, appuyez sur Partager puis Sur l\u2019\u00E9cran d\u2019accueil.";
   function layoutFix() {
     let root = document.documentElement,
       installed = !!(navigator.standalone || matchMedia("(display-mode: standalone)").matches),
@@ -9048,6 +9053,30 @@ M30`,
     Z("#appVersion").textContent = `v${gr}${Nr ? ` \u00B7 ${innerWidth}\xD7${innerHeight}/${full}` : ""}`;
   }
   (layoutFix(), addEventListener("resize", layoutFix), addEventListener("orientationchange", layoutFix));
+  (() => {
+    // Installation iPhone a l'affichage reduit : on explique une fois comment la refaire.
+    let key = "arclibre-reinstall-hint";
+    if (!document.documentElement.classList.contains("short-vp")) return;
+    try {
+      if (localStorage.getItem(key)) return;
+    } catch {}
+    setTimeout(async () => {
+      await We({
+        title: "R\u00E9installez l\u2019application",
+        build: () =>
+          W(
+            "div",
+            {},
+            W("p", { text: REINSTALL_TEXT }),
+            W("p", { class: "note", text: "Attention : supprimer l\u2019application efface aussi ses r\u00E9glages et ses mat\u00E9riaux enregistr\u00E9s. Notez-les avant si besoin." }),
+          ),
+        actions: [{ label: "Compris", kind: "primary", value: "ok" }],
+      });
+      try {
+        localStorage.setItem(key, "1");
+      } catch {}
+    }, 900);
+  })();
   applyMat(curMat());
   Ir();
   Or();
