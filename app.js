@@ -7318,7 +7318,7 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.2.2",
+  var gr = "0.2.3",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
@@ -9034,15 +9034,18 @@ M30`,
   // Pas de zoom : pincement (iOS) bloque ici, double appui bloque par touch-action dans le CSS.
   for (let ev of ["gesturestart", "gesturechange", "gestureend"])
     document.addEventListener(ev, (e) => e.preventDefault(), { passive: !1 });
-  // iPhone, application installee : iOS annonce une fenetre plus courte que l'ecran (il manque la
-  // hauteur de la barre d'etat en bas). On impose la hauteur reelle de l'ecran et la marge du haut.
+  // iPhone, application installee : iOS annonce une fenetre plus courte que l'ecran (il manque la hauteur
+  // de la barre d'etat en bas) et ne peint rien dans la bande restante. On regle la marge du haut, on
+  // marque la page "short-vp" pour que la barre du bas se prolonge visuellement, et on affiche les mesures.
   function layoutFix() {
-    if (!(Nr && (navigator.standalone || matchMedia("(display-mode: standalone)").matches))) return;
-    let root = document.documentElement.style,
+    let root = document.documentElement,
+      installed = !!(navigator.standalone || matchMedia("(display-mode: standalone)").matches),
       portrait = matchMedia("(orientation: portrait)").matches,
-      full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
-    root.setProperty("--top-guard", `${Math.max(0, +H.top_guard || 0)}px`);
-    full > innerHeight + 1 ? root.setProperty("--app-h", `${full}px`) : root.removeProperty("--app-h");
+      full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height),
+      short = Nr && installed && full > innerHeight + 1;
+    Nr && installed && root.style.setProperty("--top-guard", `${Math.max(0, +H.top_guard || 0)}px`);
+    root.classList.toggle("short-vp", !!short);
+    Z("#appVersion").textContent = `v${gr}${Nr ? ` \u00B7 ${innerWidth}\xD7${innerHeight}/${full}` : ""}`;
   }
   (layoutFix(), addEventListener("resize", layoutFix), addEventListener("orientationchange", layoutFix));
   applyMat(curMat());
@@ -9052,7 +9055,6 @@ M30`,
   Vi();
   fe();
   St();
-  Z("#appVersion").textContent = `v${gr}`;
   if ("serviceWorker" in navigator && location.protocol === "https:") {
     // Nouvelle version : le service worker se remplace tout seul, puis la page se recharge
     // (apres la decoupe s'il y en a une en cours).
