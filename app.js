@@ -7318,10 +7318,11 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.2.1",
+  var gr = "0.2.2",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
+      top_guard: 26,
       kerf: 1.5,
       feed: 3e3,
       pierce_delay: 0.5,
@@ -8783,7 +8784,10 @@ M30`,
             ht("rapid_feed", "Vitesse des rapides (estimation)", "mm/min", { range: [1, 1e5] }),
             ht("show_order", "Num\xE9ros d\u2019ordre dans l\u2019aper\xE7u", "", { onchange: St }),
           ]),
-          card("Appareil", [diagBlock()]),
+          card("Appareil", [
+            ht("top_guard", "Marge du haut (iPhone install\xE9)", "px", { range: [0, 90], onchange: layoutFix }),
+            diagBlock(),
+          ]),
           card("Lecture des fichiers", [
             ht("units", "Unit\xE9s", "", {
               choices: {
@@ -9030,6 +9034,17 @@ M30`,
   // Pas de zoom : pincement (iOS) bloque ici, double appui bloque par touch-action dans le CSS.
   for (let ev of ["gesturestart", "gesturechange", "gestureend"])
     document.addEventListener(ev, (e) => e.preventDefault(), { passive: !1 });
+  // iPhone, application installee : iOS annonce une fenetre plus courte que l'ecran (il manque la
+  // hauteur de la barre d'etat en bas). On impose la hauteur reelle de l'ecran et la marge du haut.
+  function layoutFix() {
+    if (!(Nr && (navigator.standalone || matchMedia("(display-mode: standalone)").matches))) return;
+    let root = document.documentElement.style,
+      portrait = matchMedia("(orientation: portrait)").matches,
+      full = portrait ? Math.max(screen.width, screen.height) : Math.min(screen.width, screen.height);
+    root.setProperty("--top-guard", `${Math.max(0, +H.top_guard || 0)}px`);
+    full > innerHeight + 1 ? root.setProperty("--app-h", `${full}px`) : root.removeProperty("--app-h");
+  }
+  (layoutFix(), addEventListener("resize", layoutFix), addEventListener("orientationchange", layoutFix));
   applyMat(curMat());
   Ir();
   Or();

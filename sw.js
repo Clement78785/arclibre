@@ -1,7 +1,7 @@
 // Fonctionnement hors ligne : l'application est gardee en cache sur le telephone.
 // VERSION doit rester identique a la constante gr de app.js (numero affiche en haut de l'ecran).
 // Changer ce numero suffit a declencher la mise a jour : l'application se recharge toute seule.
-const VERSION = '0.2.1';
+const VERSION = '0.2.2';
 const CACHE = 'arclibre-' + VERSION;
 const FILES = ['./', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png',
   'icons/icon-maskable-512.png', 'icons/apple-touch-icon.png', 'fonts/bsc-500.woff2', 'fonts/bsc-600.woff2', 'fonts/bsc-700.woff2'];

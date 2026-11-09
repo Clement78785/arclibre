@@ -16,11 +16,11 @@
 html, body { margin: 0; height: 100%; touch-action: manipulation; -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html { background: var(--sheet); }
 /* position: fixed plutot que 100dvh : sur iPhone, dvh laisse une bande vide en bas dans l'application installee. */
-body { position: fixed; inset: 0; display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
+body { position: fixed; inset: 0; height: var(--app-h, auto); display: grid; grid-template-rows: auto auto 1fr auto; overflow: hidden; overscroll-behavior: none; -webkit-user-select: none; user-select: none; }
 input, textarea, select, pre, [contenteditable] { -webkit-user-select: text; user-select: text; }
 /* iPhone, application installee : iOS floute le haut de l'ecran sous la barre d'etat. On garde cette zone vide. */
 @supports (-webkit-touch-callout: none) {
-  @media (display-mode: standalone) { :root { --top-guard: 34px; } }
+  @media (display-mode: standalone) { :root { --top-guard: 26px; } }
 }
 button, input, select { font: inherit; color: inherit; }
 :focus-visible { outline: 2px solid var(--plasma); outline-offset: 2px; }
