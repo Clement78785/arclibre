@@ -5823,7 +5823,8 @@
       $t * 60 +
       (Pt / Math.max(+s.rapid_feed, 1)) * 60 +
       Gt * (+s.pierce_delay + 1) +
-      (Tt.spot || 0) * (+s.spot_time + 1);
+      (Tt.spot || 0) * (+s.spot_time + 1) +
+      Math.max(0, o.toolpaths.length - 1) * Math.max(0, +s.refire_delay || 0);
     o.stats = {
       kinds: Tt,
       pierces: Gt,
@@ -5924,7 +5925,7 @@ M30`,
         a.pierce_dwell && b > 0 && _(a.pierce_dwell, { s: h(b), ms: String(Math.round(b * 1e3)) });
       };
     (I(`ArcLibre Mobile - ${l} - ${new Date().toISOString().slice(0, 16).replace("T", " ")}`),
-      I(`Saignee ${h(+s.kerf)} mm, vitesse ${h(P)} mm/min, percage ${h(+s.pierce_delay)} s`),
+      I(`Saignee ${h(+s.kerf)} mm, vitesse ${h(P)} mm/min, percage ${h(+s.pierce_delay)} s, attente entre amorcages ${h(Math.max(0, +s.refire_delay || 0))} s`),
       _(a.header));
     let E = null,
       M = null;
@@ -5938,6 +5939,7 @@ M30`,
             _(a.torch_on),
             a.spot_dwell && T(+s.spot_time),
             _(a.torch_off),
+            A < e.toolpaths.length - 1 && T(Math.max(0, +s.refire_delay || 0)),
             (M = [Y, X]));
           return;
         }
@@ -5952,7 +5954,7 @@ M30`,
           M = J;
           for (let B of G) (E !== S && ((B += ` F${h(S)}`), (E = S)), x.push(B));
         }
-        _(a.torch_off);
+        (_(a.torch_off), A < e.toolpaths.length - 1 && T(Math.max(0, +s.refire_delay || 0)));
       }),
       _(a.footer),
       x.join(`
@@ -7318,7 +7320,7 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.2.4",
+  var gr = "0.3.0",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
@@ -7326,6 +7328,7 @@ M30`,
       kerf: 1.5,
       feed: 3e3,
       pierce_delay: 0.5,
+      refire_delay: 2,
       rapid_feed: 6e3,
       torch_on: "M3 S1000",
       torch_off: "M5",
@@ -8518,7 +8521,8 @@ M30`,
       a = o;
     for (let h of w.job.toolpaths)
       if (
-        (l.push([a, h.pierce, "rapid", ft(a, h.pierce) / s]),
+        (l.length && l.push([a, a, "pause", Math.max(0, +H.refire_delay || 0)]),
+        l.push([a, h.pierce, "rapid", ft(a, h.pierce) / s]),
         l.push([h.pierce, h.pierce, "pause", (h.kind === "spot" ? +H.spot_time : +H.pierce_delay) + 0.3]),
         h.kind !== "spot")
       ) {
@@ -8754,6 +8758,11 @@ M30`,
           card("Torche", [
             ht("torch_on", "Allumage de la torche"),
             ht("torch_off", "Extinction de la torche"),
+            ht("refire_delay", "D\xE9lai minimum entre deux amor\xE7ages", "s", { range: [0, 60] }),
+            W("p", {
+              class: "note",
+              text: "Attente apr\u00E8s l\u2019extinction de la torche, avant d\u2019aller au prochain per\u00E7age. Le temps de d\u00E9placement s\u2019ajoute \u00E0 ce d\u00E9lai.",
+            }),
           ]),
           card("Trajectoires", [
             ht("overcut", "Sur-coupe", "mm", { range: [0, 50] }),
