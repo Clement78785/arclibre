@@ -6786,7 +6786,7 @@ M30`,
       d = o.minMM ?? 2,
       h = new Float32Array(l * a),
       m = Math.SQRT2;
-    for (let X = 0; X < l * a; X++) h[X] = s[X] ? 1e9 : 0;
+    for (let X = 0; X < l * a; X++) h[X] = s[X] && !o.noOffset ? 1e9 : 0;
     for (let X = 0; X < a; X++)
       for (let S = 0; S < l; S++) {
         let F = X * l + S;
@@ -6811,7 +6811,7 @@ M30`,
           v++,
           (P += h[F]));
       }
-    let x = v ? Math.max(1, (4 * P) / v - 2) : 3,
+    let x = o.noOffset ? 0 : v ? Math.max(1, (4 * P) / v - 2) : 3,
       I = new Uint8Array(l * a);
     for (let X = 0; X < l * a; X++) I[X] = s[X] ? 0 : 1;
     let { labels: _, sizes: T, touch: E, first: M } = Qe(I, l, a, 1),
@@ -6820,7 +6820,7 @@ M30`,
       Y = Math.max(1, Math.round(p / u));
     for (let X = 0; X < T.length; X++) {
       if (E[X] || T[X] < b) continue;
-      let S = Dt([ce(mr(_, l, a, X, M[X]))], x / 2, 0.05, !0);
+      let S = x > 0 ? Dt([ce(mr(_, l, a, X, M[X]))], x / 2, 0.05, !0) : [ce(mr(_, l, a, X, M[X]))];
       if (!S.length) continue;
       let F = S.reduce((et, z) => (Math.abs(It(z)) > Math.abs(It(et)) ? z : et)),
         G = [];
@@ -7320,7 +7320,7 @@ M30`,
         o && ((this.job = null), (o.done = !0), (o.error = o.error || s), this.emit("job", o));
       }
     };
-  var gr = "0.3.0",
+  var gr = "0.4.0",
     ke = { outside: "#5cc0ff", inside: "#57d6a6", hole: "#f2c14e", online: "#c79bff", spot: "#ff7a3d" },
     si = {
       material_id: "",
@@ -7362,6 +7362,7 @@ M30`,
       scan_paper: "A4",
       scan_sensitivity: 0.35,
       scan_lissage: 1.5,
+      scan_lissage_solid: 0.6,
       scan_circle_tol: 0.2,
       scan_circles: !0,
       show_order: !0,
@@ -7624,6 +7625,7 @@ M30`,
       s = [...w.sheet.defs.values()];
     ((Z("#partsEmpty").hidden = s.length > 0),
       (Z("#cardNest").hidden = !s.length),
+      (Z("#btnDxf").hidden = !s.length),
       (Z("#cardLayers").hidden = !s.length),
       e.replaceChildren());
     let o = ae();
@@ -7821,8 +7823,12 @@ M30`,
   }
   async function br(e) {
     let s = e.name;
+    if (/\.(png|jpe?g|webp|gif|bmp|heic|heif|avif)$/i.test(s) || (e.type || "").startsWith("image/")) {
+      await wr(e, { kind: "image", name: s.replace(/\.[^.]+$/, "") });
+      return;
+    }
     if (!/\.(dxf|svg)$/i.test(s)) {
-      yt(`\xAB ${s} \xBB n\u2019est pas un fichier DXF ou SVG.`, "err");
+      yt(`\xAB ${s} \xBB n\u2019est pas un fichier DXF, SVG ou une image.`, "err");
       return;
     }
     let o, l;
@@ -7958,7 +7964,7 @@ M30`,
   async function hi(e, s) {
     let o = w.sheet.defs.get(e);
     if (!o) return;
-    let l = [["size", "Taille\u2026"]].concat(
+    let l = [["size", "Taille\u2026"], ["dxf", "Exporter en DXF"]].concat(
         s
           ? [
               ["rotR", "Pivoter d\u2019un quart de tour \xE0 droite"],
@@ -7982,7 +7988,8 @@ M30`,
           ),
       }),
       u = ae();
-    if (a === "size") {
+    if (a === "dxf") saveDxf(dxfItems(o), o.name);
+    else if (a === "size") {
       let p = await ui(o.drawing, o.name, {
         sx: o.sx,
         sy: o.sy,
@@ -8003,55 +8010,170 @@ M30`,
         : (yt(`\xAB ${o.name} \xBB est s\xE9par\xE9 en ${p} pi\xE8ces.`), Zt(!0));
     } else a === "remove" && (w.sheet.removeDef(e), (w.sel = null), Zt(!0));
   }
+  // ---- Import d'image : photo de croquis ou image quelconque (logo, silhouette, dessin) ----
+  function otsuLevel(g) {
+    // Seuil d'Otsu : milieu entre la moyenne des zones sombres et celle des zones claires
+    // (pour une image noir et blanc pure, c'est 127,5 et non 0).
+    let hist = new Float64Array(256),
+      total = g.length,
+      sum = 0,
+      wB = 0,
+      sB = 0,
+      best = -1,
+      thr = 127.5;
+    for (let i = 0; i < total; i++) hist[Math.max(0, Math.min(255, g[i] | 0))]++;
+    for (let i = 0; i < 256; i++) sum += i * hist[i];
+    for (let i = 0; i < 256; i++) {
+      wB += hist[i];
+      if (!wB) continue;
+      let wF = total - wB;
+      if (!wF) break;
+      sB += i * hist[i];
+      let m1 = sB / wB,
+        m2 = (sum - sB) / wF,
+        d = wB * wF * (m1 - m2) ** 2;
+      d > best && ((best = d), (thr = (m1 + m2) / 2));
+    }
+    return thr;
+  }
+  function lineOrSolid(e, thr) {
+    // "line" si les zones sombres sont des traits fins, "solid" si ce sont des formes pleines
+    let { w: l, h: a, g: u } = e,
+      area = 0,
+      per = 0;
+    for (let y = 0; y < a; y++)
+      for (let x = 0; x < l; x++) {
+        let i = y * l + x;
+        if (!(u[i] < thr)) continue;
+        area++;
+        (x === 0 || y === 0 || x === l - 1 || y === a - 1 || u[i - 1] >= thr || u[i + 1] >= thr || u[i - l] >= thr || u[i + l] >= thr) && per++;
+      }
+    return area && (2 * area) / Math.max(per, 1) < 0.02 * Math.min(l, a) ? "line" : "solid";
+  }
+  function darkBorder(e, thr) {
+    // vrai si le pourtour de l'image est sombre (forme claire sur fond noir)
+    let { w: l, h: a, g: u } = e,
+      m = Math.max(1, Math.round(Math.min(l, a) * 0.02)),
+      dark = 0,
+      n = 0;
+    for (let y = 0; y < a; y++)
+      for (let x = 0; x < l; x++)
+        if (x < m || y < m || x >= l - m || y >= a - m) (n++, u[y * l + x] < thr && dark++);
+    return n > 0 && dark / n > 0.5;
+  }
+  function padImage(e) {
+    // marge claire autour de l'image : une forme qui touche le bord reste detectee
+    let pad = Math.ceil(0.03 * Math.max(e.w, e.h)),
+      w2 = e.w + 2 * pad,
+      h2 = e.h + 2 * pad,
+      g = new Float32Array(w2 * h2).fill(255);
+    for (let y = 0; y < e.h; y++) g.set(e.g.subarray(y * e.w, (y + 1) * e.w), (y + pad) * w2 + pad);
+    return { ...e, w: w2, h: h2, g, pad };
+  }
+  function solidShapes(e, thr, invert, opts = {}) {
+    // Silhouettes : contours des zones sombres (pieces) et des zones claires qu'elles entourent (trous).
+    let { w: l, h: a, g: u, pad: pd = 0 } = e,
+      n = l * a,
+      dark = new Uint8Array(n);
+    for (let y = pd; y < a - pd; y++)
+      for (let x = pd; x < l - pd; x++) {
+        let i = y * l + x;
+        dark[i] = (invert ? u[i] >= thr : u[i] < thr) ? 1 : 0;
+      }
+    // taches et grains minuscules : supprimes
+    let minPx = Math.max(6, Math.round((0.004 * Math.max(l, a)) ** 2)),
+      d1 = Qe(dark, l, a, 1);
+    for (let i = 0; i < n; i++) dark[i] && d1.sizes[d1.labels[i]] < minPx && (dark[i] = 0);
+    let light = new Uint8Array(n);
+    for (let i = 0; i < n; i++) light[i] = dark[i] ? 0 : 1;
+    let d2 = Qe(light, l, a, 1);
+    for (let i = 0; i < n; i++) light[i] && !d2.touch[d2.labels[i]] && d2.sizes[d2.labels[i]] < minPx && (light[i] = 0);
+    for (let i = 0; i < n; i++) dark[i] = light[i] ? 0 : 1;
+    let o = { smoothMM: opts.smoothMM, circleTol: opts.circleTol, circles: opts.circles, minMM: 0.3, noOffset: !0 },
+      pieces = Wi(e, light, o),
+      holes = Wi(e, dark, o);
+    return { shapes: [...pieces.shapes, ...holes.shapes], strokeMM: 0 };
+  }
   Z("#btnScan").addEventListener("click", () => Z("#photoInput").click());
+  Z("#btnImage").addEventListener("click", () => Z("#imageInput").click());
   Z("#photoInput").addEventListener("change", async (e) => {
     let s = e.target.files[0];
-    ((e.target.value = ""), s && (await wr(s)));
+    ((e.target.value = ""), s && (await wr(s, { kind: "photo" })));
+  });
+  Z("#imageInput").addEventListener("change", async (e) => {
+    let s = e.target.files[0];
+    ((e.target.value = ""), s && (await wr(s, { kind: "image", name: s.name.replace(/\.[^.]+$/, "") })));
   });
   function _r(e) {
     return new Promise((s, o) => {
       let l = new Image();
       ((l.onload = () => s(l)),
-        (l.onerror = () => o(new Error("Photo illisible."))),
+        (l.onerror = () => o(new Error("Image illisible."))),
         (l.src = URL.createObjectURL(e)));
     });
   }
-  async function wr(e) {
+  async function wr(e, opts = {}) {
     let s;
     try {
       let o = await _r(e),
-        l = Math.min(1, 1600 / Math.max(o.naturalWidth, o.naturalHeight)),
+        longSide = Math.max(o.naturalWidth, o.naturalHeight),
+        // 1600 px au plus ; les petites images sont agrandies pour un contour plus fin
+        l = longSide > 1600 ? 1600 / longSide : longSide < 900 ? 1000 / longSide : 1,
         a = W("canvas", { width: Math.round(o.naturalWidth * l), height: Math.round(o.naturalHeight * l) }),
         u = a.getContext("2d", { willReadFrequently: !0 });
-      (u.drawImage(o, 0, 0, a.width, a.height), (s = Ke(u.getImageData(0, 0, a.width, a.height))));
+      // fond blanc : les zones transparentes d'un PNG ne doivent pas devenir noires
+      ((u.fillStyle = "#fff"),
+        u.fillRect(0, 0, a.width, a.height),
+        (u.imageSmoothingQuality = "high"),
+        u.drawImage(o, 0, 0, a.width, a.height),
+        (s = Ke(u.getImageData(0, 0, a.width, a.height))));
     } catch (o) {
       yt(o.message, "err");
       return;
     }
-    await tn(s);
+    await tn(s, opts);
   }
-  async function tn(e) {
-    let o = null,
+  async function tn(e, opts = {}) {
+    let kind = opts.kind === "image" ? "image" : "photo",
+      thrAuto = otsuLevel(e.g),
+      mode = kind === "image" ? "auto" : "line",
+      eff = "line",
+      thr = Math.round(thrAuto),
+      inv = darkBorder(e, thrAuto),
+      o = null,
       l = null,
       a = new Set(),
       u = W("canvas", { class: "scan-canvas" }),
       p = W("p", { class: "note" }),
       d = W("canvas"),
+      rows = {},
+      sync = () => {
+        for (let [k, v] of Object.entries(rows)) v.hidden = !(k === "line" ? eff === "line" : eff === "solid");
+      },
       h = () => {
         o = $i(e, H.scan_paper);
+        eff = mode === "auto" ? lineOrSolid(e, thrAuto) : mode;
+        eff === "solid" && (o = padImage(o));
         let M = new ImageData(o.w, o.h);
         for (let b = 0; b < o.w * o.h; b++) {
           let A = o.g[b];
           ((M.data[b * 4] = M.data[b * 4 + 1] = M.data[b * 4 + 2] = A), (M.data[b * 4 + 3] = 255));
         }
-        ((d.width = o.w), (d.height = o.h), d.getContext("2d").putImageData(M, 0, 0), m());
+        ((d.width = o.w), (d.height = o.h), d.getContext("2d").putImageData(M, 0, 0), sync(), m());
       },
       m = () => {
-        ((l = Wi(o, Gi(o, +H.scan_sensitivity, 0.25), {
-          smoothMM: +H.scan_lissage,
-          circleTol: +H.scan_circle_tol,
-          circles: !!H.scan_circles,
-        })),
+        ((l =
+          eff === "solid"
+            ? solidShapes(o, thr, inv, {
+                smoothMM: +H.scan_lissage_solid,
+                circleTol: +H.scan_circle_tol,
+                circles: !!H.scan_circles,
+              })
+            : Wi(o, Gi(o, +H.scan_sensitivity, 0.25), {
+                smoothMM: +H.scan_lissage,
+                circleTol: +H.scan_circle_tol,
+                circles: !!H.scan_circles,
+              })),
           (a = new Set()),
           v());
       },
@@ -8078,10 +8200,13 @@ M30`,
               Y.stroke());
           }),
           Y.setLineDash([]));
-        let X = l.shapes.length - a.size;
+        let X = l.shapes.length - a.size,
+          kindText = mode === "auto" ? `D\xE9tect\xE9 : ${eff === "solid" ? "silhouette" : "dessin au trait"}. ` : "";
         p.textContent = l.shapes.length
-          ? `${X} contour${X > 1 ? "s" : ""} retenu${X > 1 ? "s" : ""}, trait d\u2019environ ${ct(l.strokeMM, 1)} mm. Touchez un contour pour l\u2019\xE9carter ou le reprendre.`
-          : "Aucun contour ferm\xE9 trouv\xE9 : tracez des formes ferm\xE9es bien noires, ou augmentez la sensibilit\xE9.";
+          ? `${kindText}${X} contour${X > 1 ? "s" : ""} retenu${X > 1 ? "s" : ""}${eff === "solid" ? "" : `, trait d’environ ${ct(l.strokeMM, 1)} mm`}. Touchez un contour pour l’\xE9carter ou le reprendre.`
+          : eff === "solid"
+            ? `${kindText}Aucune forme trouv\xE9e : r\xE9glez le seuil ou inversez noir et blanc.`
+            : `${kindText}Aucun contour ferm\xE9 trouv\xE9 : tracez des formes ferm\xE9es bien noires, ou augmentez la sensibilit\xE9.`;
       };
     u.addEventListener("click", (M) => {
       let b = u.getBoundingClientRect(),
@@ -8094,19 +8219,19 @@ M30`,
       }),
         !(X < 0) && (a.has(X) ? a.delete(X) : a.add(X), v()));
     });
-    let P = (M, b, A, Y, X, S) => {
+    // curseur reglable : cle = reglage memorise (ou null), group = "line" / "solid" / null (toujours visible)
+    let P = (M, b, A, Y, X, S, group) => {
         let F = W("span", { class: "unit", text: S(H[M]) }),
           G = W("input", { type: "range", min: A, max: Y, step: X, id: `sc-${M}`, "aria-label": b });
-        return (
-          (G.value = H[M]),
+        ((G.value = H[M]),
           G.addEventListener("input", () => {
             F.textContent = S(+G.value);
           }),
           G.addEventListener("change", () => {
             ((H[M] = +G.value), zt(), m());
-          }),
-          W("div", { class: "row" }, W("label", { for: `sc-${M}`, text: b }), G, F)
-        );
+          }));
+        let R = W("div", { class: "row" }, W("label", { for: `sc-${M}`, text: b }), G, F);
+        return (group && (rows[`${group}:${M}`] = R), R);
       },
       x = W(
         "select",
@@ -8122,8 +8247,44 @@ M30`,
       I.addEventListener("change", () => {
         ((H.scan_circles = I.checked), zt(), m());
       }));
+    let modeSel = W(
+        "select",
+        { id: "sc-mode" },
+        [
+          ["auto", "Automatique"],
+          ["line", "Dessin au trait (formes ferm\xE9es)"],
+          ["solid", "Silhouette (zones pleines)"],
+        ].map(([k, label]) => W("option", { value: k }, label)),
+      ),
+      thrLabel = W("span", { class: "unit", text: `${Math.round(thr / 2.55)} %` }),
+      thrInput = W("input", { type: "range", min: 5, max: 250, step: 1, id: "sc-thr", "aria-label": "Seuil du noir" }),
+      invBox = W("input", { type: "checkbox", id: "sc-inv" });
+    ((modeSel.value = mode),
+      modeSel.addEventListener("change", () => {
+        ((mode = modeSel.value), h());
+      }),
+      (thrInput.value = thr),
+      thrInput.addEventListener("input", () => {
+        thrLabel.textContent = `${Math.round(+thrInput.value / 2.55)} %`;
+      }),
+      thrInput.addEventListener("change", () => {
+        ((thr = +thrInput.value), m());
+      }),
+      (invBox.checked = inv),
+      invBox.addEventListener("change", () => {
+        ((inv = invBox.checked), m());
+      }));
+    let rowThr = W("div", { class: "row" }, W("label", { for: "sc-thr", text: "Seuil du noir" }), thrInput, thrLabel),
+      rowInv = W("div", { class: "row check" }, W("label", { for: "sc-inv", text: "Inverser noir et blanc" }), invBox),
+      rowSens = P("scan_sensitivity", "Sensibilit\xE9", 0.15, 0.6, 0.05, (M) => `${Math.round(M * 100)} %`),
+      rowSmoothLine = P("scan_lissage", "Lissage", 0, 6, 0.25, (M) => `${ct(M, 2)} mm`),
+      rowSmoothSolid = P("scan_lissage_solid", "Lissage", 0, 4, 0.1, (M) => `${ct(M, 1)} mm`);
+    ((rows = { "line:a": rowSens, "line:b": rowSmoothLine, "solid:a": rowThr, "solid:b": rowInv, "solid:c": rowSmoothSolid }),
+      (sync = () => {
+        for (let [k, v] of Object.entries(rows)) v.hidden = k.split(":")[0] !== eff;
+      }));
     let _ = await We({
-      title: "Croquis",
+      title: kind === "image" ? "Image" : "Croquis",
       full: !0,
       build: () => (
         requestAnimationFrame(h),
@@ -8132,15 +8293,24 @@ M30`,
           {},
           u,
           p,
-          W("div", { class: "row" }, W("label", { for: "sc-paper", text: "Format de la feuille (cadr\u00E9e)" }), x),
-          P("scan_sensitivity", "Sensibilit\xE9", 0.15, 0.6, 0.05, (M) => `${Math.round(M * 100)} %`),
-          P("scan_lissage", "Lissage", 0, 6, 0.25, (M) => `${ct(M, 2)} mm`),
+          W("div", { class: "row" }, W("label", { for: "sc-mode", text: "Type d’image" }), modeSel),
+          W(
+            "div",
+            { class: "row" },
+            W("label", { for: "sc-paper", text: kind === "image" ? "Format de r\xE9f\xE9rence" : "Format de la feuille (cadr\xE9e)" }),
+            x,
+          ),
+          rowSens,
+          rowThr,
+          rowInv,
+          rowSmoothLine,
+          rowSmoothSolid,
           W("div", { class: "row check" }, W("label", { for: "sc-circ", text: "Cercles parfaits" }), I),
           P("scan_circle_tol", "Tol\xE9rance des cercles", 0.05, 0.25, 0.01, (M) => `${Math.round(M * 100)} %`),
         )
       ),
       actions: [
-        { label: "Reprendre la photo", value: "retake" },
+        { label: kind === "image" ? "Autre image" : "Reprendre la photo", value: "retake" },
         {
           label: "Continuer",
           kind: "primary",
@@ -8150,17 +8320,18 @@ M30`,
       ],
     });
     if (_ === "retake") {
-      Z("#photoInput").click();
+      Z(kind === "image" ? "#imageInput" : "#photoInput").click();
       return;
     }
     if (_ !== "ok") return;
     let T = Tr(l.shapes.filter((M, b) => !a.has(b))),
-      E = `Croquis ${++w.scans}`;
+      E = opts.name || (kind === "image" ? `Image ${++w.scans}` : `Croquis ${++w.scans}`),
+      layer = kind === "image" ? "Image" : "Croquis";
     for (let M = 0; M < T.length; M++) {
-      let b = T.length > 1 ? `${E} \u2013 pi\xE8ce ${M + 1}` : E,
+      let b = T.length > 1 ? `${E} – pi\xE8ce ${M + 1}` : E,
         A = new Nt(b, "croquis");
       for (let Y of T[M])
-        if ((A.add(Y.mm, !0, "Croquis"), Y.circle)) {
+        if ((A.add(Y.mm, !0, layer), Y.circle)) {
           let X = mt(Y.mm);
           A.paths[A.paths.length - 1].circle = [[(X[0] + X[2]) / 2, (X[1] + X[3]) / 2], (X[2] - X[0]) / 2];
         }
@@ -8570,6 +8741,106 @@ M30`,
       (D.strokeStyle = "#ff7a3d"),
       D.stroke());
   }
+  // ---- Export DXF (R12, polylignes et cercles, en millimetres, coin bas-gauche a l'origine) ----
+  function dxfLayerName(n) {
+    return (
+      String(n || "0")
+        .normalize("NFKD")
+        .replace(/[^\x20-\x7e]/g, "")
+        .replace(/[^A-Za-z0-9_$-]/g, "_")
+        .slice(0, 31)
+        .toUpperCase() || "0"
+    );
+  }
+  function dxfText(items) {
+    let nb = (v) => String(Math.round(v * 1e5) / 1e5),
+      minX = 1 / 0,
+      minY = 1 / 0;
+    for (let it of items) {
+      if (it.circle) {
+        minX = Math.min(minX, it.circle[0][0] - it.circle[1]);
+        minY = Math.min(minY, it.circle[0][1] - it.circle[1]);
+      } else
+        for (let p of it.pts) {
+          minX = Math.min(minX, p[0]);
+          minY = Math.min(minY, p[1]);
+        }
+    }
+    let layers = [...new Set(items.map((it) => dxfLayerName(it.layer)))],
+      o = [],
+      g = (c, v) => o.push(String(c), String(v));
+    (g(0, "SECTION"), g(2, "HEADER"), g(9, "$ACADVER"), g(1, "AC1009"), g(9, "$INSUNITS"), g(70, 4), g(0, "ENDSEC"));
+    (g(0, "SECTION"), g(2, "TABLES"), g(0, "TABLE"), g(2, "LTYPE"), g(70, 1));
+    (g(0, "LTYPE"), g(2, "CONTINUOUS"), g(70, 0), g(3, "Solid line"), g(72, 65), g(73, 0), g(40, 0), g(0, "ENDTAB"));
+    (g(0, "TABLE"), g(2, "LAYER"), g(70, layers.length));
+    for (let n of layers) (g(0, "LAYER"), g(2, n), g(70, 0), g(62, 7), g(6, "CONTINUOUS"));
+    (g(0, "ENDTAB"), g(0, "ENDSEC"), g(0, "SECTION"), g(2, "ENTITIES"));
+    for (let it of items) {
+      let ly = dxfLayerName(it.layer);
+      if (it.circle) {
+        (g(0, "CIRCLE"), g(8, ly), g(10, nb(it.circle[0][0] - minX)), g(20, nb(it.circle[0][1] - minY)), g(30, 0), g(40, nb(it.circle[1])));
+        continue;
+      }
+      let pts = it.pts.slice();
+      it.closed && pts.length > 1 && Math.hypot(pts[0][0] - pts[pts.length - 1][0], pts[0][1] - pts[pts.length - 1][1]) < 1e-6 && pts.pop();
+      if (pts.length < 2) continue;
+      (g(0, "POLYLINE"), g(8, ly), g(66, 1), g(10, 0), g(20, 0), g(30, 0), g(70, it.closed ? 1 : 0));
+      for (let p of pts) (g(0, "VERTEX"), g(8, ly), g(10, nb(p[0] - minX)), g(20, nb(p[1] - minY)), g(30, 0));
+      (g(0, "SEQEND"), g(8, ly));
+    }
+    return (g(0, "ENDSEC"), g(0, "EOF"), o.join("\n") + "\n");
+  }
+  function dxfItems(defs) {
+    // defs : null = toute la feuille (pieces placees), sinon un dessin seul a son echelle
+    let sh = w.sheet,
+      vis = Ye(sh.layers(), H.layers),
+      items = [],
+      add = (def, tf, scale) => {
+        for (let p of def.drawing.paths) {
+          if (!vis(p.layer)) continue;
+          if (p.circle && Math.abs(def.sx - def.sy) < 1e-9) items.push({ circle: [tf(p.circle[0]), p.circle[1] * scale], layer: p.layer });
+          else items.push({ pts: p.pts.map(tf), closed: p.closed, layer: p.layer });
+        }
+      };
+    if (defs) {
+      let def = defs;
+      add(def, (p) => [(p[0] - def.m0[0]) * def.sx, (p[1] - def.m0[1]) * def.sy], def.sx);
+    } else
+      for (let inst of sh.instances) {
+        let def = sh.defs.get(inst.defId),
+          u = sh.matrix(inst);
+        add(def, (p) => [u[0] * p[0] + u[1] * p[1] + u[4], u[2] * p[0] + u[3] * p[1] + u[5]], def.sx);
+      }
+    return items;
+  }
+  async function saveDxf(items, name) {
+    if (!items.length) {
+      yt("Rien \xE0 exporter : ajoutez une pi\xE8ce.", "warn");
+      return;
+    }
+    let base = String(name || "decoupe")
+        .replace(/\.[^.]+$/, "")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^A-Za-z0-9_-]+/g, "_")
+        .replace(/^_+|_+$/g, ""),
+      fname = `${base || "decoupe"}.dxf`,
+      file = new File([dxfText(items)], fname, { type: "application/dxf" });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({ files: [file], title: fname });
+        return;
+      }
+    } catch (e) {
+      if (e.name === "AbortError") return;
+    }
+    let a = W("a", { href: URL.createObjectURL(file), download: fname });
+    (document.body.append(a), a.click(), a.remove(), yt(`DXF enregistr\xE9 : ${fname}`));
+  }
+  Z("#btnDxf").addEventListener("click", () => {
+    let defs = [...w.sheet.defs.values()];
+    saveDxf(dxfItems(null), defs.length === 1 ? defs[0].name : "decoupe");
+  });
   Z("#btnExport").addEventListener("click", Xr);
   async function Xr() {
     if (!w.gcode) {
@@ -9129,6 +9400,8 @@ M30`,
     sizeDialog: ui,
     scanSession: tn,
     machine: vt,
+    dxfText,
+    dxfItems,
     toGray: Ke,
     async importText(e, s, o = { sx: 1, sy: 1 }) {
       let l = w.sheet.addDrawing(fi(e, s), e, ae(), +H.nest_spacing, o);

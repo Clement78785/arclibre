@@ -70,6 +70,9 @@ p { margin: 0 0 10px; }
 .btn.small { min-height: 40px; padding: 6px 12px; font-size: 0.9rem; }
 .btn.wide { width: 100%; }
 .btn:disabled { opacity: 0.4; }
+.actions-row .span2 { grid-column: 1 / -1; }
+.dxf-btn { margin: -4px 0 14px; }
+.row[hidden] { display: none; }
 .actions-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 6px 0 16px; }
 .card { background: var(--steel); border: 1px solid var(--steel-3); border-radius: 14px; padding: 14px; margin: 0 0 14px; }
 .parts { display: grid; gap: 10px; margin-bottom: 14px; }

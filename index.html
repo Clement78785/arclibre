@@ -27,13 +27,15 @@
   <section id="tab-pieces" class="panel active" aria-label="Pièces">
     <div id="partsEmpty" class="empty">
       <h1>Préparez votre découpe</h1>
-      <p>Importez un plan DXF ou SVG, ou photographiez un croquis tracé au feutre sur une feuille blanche.</p>
+      <p>Importez un plan DXF ou SVG, une image (logo, silhouette, dessin) ou photographiez un croquis tracé au feutre sur une feuille blanche.</p>
     </div>
     <div class="actions-row">
       <button class="btn primary" id="btnImport" type="button">Importer un fichier</button>
-      <button class="btn" id="btnScan" type="button">Scanner un croquis</button>
+      <button class="btn primary" id="btnImage" type="button">Importer une image</button>
+      <button class="btn span2" id="btnScan" type="button">Scanner un croquis</button>
     </div>
     <div id="parts" class="parts"></div>
+    <button class="btn wide dxf-btn" id="btnDxf" type="button" hidden>Exporter la feuille en DXF</button>
     <section class="card" id="cardNest" hidden>
       <h2>Placement automatique</h2>
       <div id="nestForm"></div>
@@ -120,7 +122,8 @@
   <button type="button" data-tab="decoupe" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14 M5 12h14 M5 17h14 M9 5v4 M15 10v4 M8 15v4"/></svg>Réglages</button>
   <button type="button" data-tab="machine" aria-selected="false"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v6 M12 15v6 M3 12h6 M15 12h6"/><circle cx="12" cy="12" r="2.5"/></svg>Machine</button>
 </nav>
-<input type="file" id="fileInput" multiple hidden>
+<input type="file" id="fileInput" accept=".dxf,.svg,image/*" multiple hidden>
+<input type="file" id="imageInput" accept="image/*" hidden>
 <input type="file" id="photoInput" accept="image/*" capture="environment" hidden>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="app.js"></script>
